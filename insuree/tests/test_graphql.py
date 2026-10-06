@@ -103,6 +103,28 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
 
 
 
+    def test_query_insuree_number_validity_for_edit_passes_uuid_to_service(self):
+        candidate = "28803120134518"  # approved synthetic QA ID; no write
+        current_uuid = "20000000-0000-4000-8000-000000000002"
+        with patch("insuree.schema.validate_insuree_number", return_value=[]) as validate:
+            response = self.query(
+                '''
+                query ($number: String!, $current: String) {
+                    insureeNumberValidity(insureeNumber: $number, insureeUuid: $current) {
+                        isValid
+                        errorCode
+                        errorMessage
+                    }
+                }
+                ''',
+                variables={"number": candidate, "current": current_uuid},
+                headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"},
+            )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertResponseNoErrors(response)
+        self.assertTrue(json.loads(response.content)["data"]["insureeNumberValidity"]["isValid"])
+        validate.assert_called_once_with(candidate, insuree_uuid=current_uuid)
+
     def test_insuree_query(self):
         
         response = self.query(

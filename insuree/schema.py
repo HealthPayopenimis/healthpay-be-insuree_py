@@ -125,13 +125,14 @@ class Query(ExportableQueryMixin, graphene.ObjectType):
     insuree_number_validity = graphene.Field(
         ValidationMessageGQLType,
         insuree_number=graphene.String(required=True),
+        insuree_uuid=graphene.String(),
         description="Checks that the specified insuree number is valid"
     )
 
     def resolve_insuree_number_validity(self, info, **kwargs):
         if not info.context.user.has_perms(InsureeConfig.gql_query_insurees_perms):
             raise PermissionDenied(_("unauthorized"))
-        errors = validate_insuree_number(kwargs['insuree_number'])
+        errors = validate_insuree_number(kwargs['insuree_number'], insuree_uuid=kwargs.get('insuree_uuid'))
         if errors:
             return ValidationMessageGQLType(False, errors[0]['errorCode'], errors[0]['message'])
         else:
@@ -173,7 +174,9 @@ class Query(ExportableQueryMixin, graphene.ObjectType):
         chf_id = kwargs.get('chf_id')
         
         if chf_id is not None:
-            errors = validate_insuree_number(chf_id)
+            # An exact-ID search must still find an existing insuree. Only the
+            # validity query and create/update enforce uniqueness.
+            errors = validate_insuree_number(chf_id, check_uniqueness=False)
             if errors:
                 return ValidationMessageGQLType(False, errors[0]['errorCode'], errors[0]['message'])
             filters.append(Q(chf_id=chf_id))
