@@ -136,6 +136,16 @@ class DuplicateNationalIdValidationTest(SimpleTestCase):
         self.assertIn("legacy_id", str(exclusion))
         self.assertIn("42", str(exclusion))
 
+    def test_same_uuid_edit_allows_inactive_current_record_and_its_history(self):
+        current = SimpleNamespace(uuid=self.SELF_UUID, id=42, status=InsureeStatus.INACTIVE)
+        self.insuree_model.objects.filter.side_effect = lambda **kw: (
+            SimpleNamespace(first=lambda: current) if "uuid" in kw else self.matches
+        )
+        remainder = self.matches.exclude.return_value
+        remainder.filter.return_value.exists.return_value = False
+        remainder.exists.return_value = False
+        self.assertEqual(validate_insuree_number(self.NUMBER, self.SELF_UUID), [])
+
     def test_different_record_uuid_does_not_exempt_the_duplicate(self):
         current = SimpleNamespace(uuid=self.OTHER_UUID, id=19)
         self.insuree_model.objects.filter.side_effect = lambda **kw: (
