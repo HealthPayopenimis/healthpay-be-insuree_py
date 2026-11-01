@@ -9,10 +9,30 @@ import re
 from datetime import datetime, date
 from core import filter_validity
     
+def egypt_fixture_validation_enabled():
+    from django.apps import apps
+    if not apps.is_installed("egypt_localization"):
+        return False
+    from egypt_localization.signals import _enforcement_enabled
+    return _enforcement_enabled()
+
+
+def validate_test_fixture_number(number):
+    if egypt_fixture_validation_enabled():
+        # This is the same strict formatter used by the active model signal;
+        # app configuration can be unseeded before the test database is selected.
+        from egypt_localization.validators import validate_egyptian_national_id_for_insuree
+        errors = validate_egyptian_national_id_for_insuree(str(number))
+        if not errors and Insuree.objects.filter(chf_id=number).exists():
+            return ["duplicate test fixture number"]
+        return errors
+    return validate_insuree_number(number)
+
+
 def generate_random_insuree_number(birth_date=None, gender=None):
     # Test fixtures must honour the configured country validator without disabling
     # its model signal. This helper is not used by production enrolment writes.
-    if str(InsureeConfig.insuree_number_validator or "").startswith("egypt_localization."):
+    if egypt_fixture_validation_enabled():
         birthday = birth_date or date(1972, 8, 9)
         if isinstance(birthday, str):
             birthday = datetime.fromisoformat(birthday).date()
@@ -57,7 +77,7 @@ def create_test_insuree(with_family=True, is_head=False, custom_props=None, fami
     if not insuree and 'uuid' in custom_props:
         insuree = Insuree.objects.filter(uuid=custom_props['uuid'], *Insuree.filter_validity()).first()
     if not insuree:
-        egypt_fixture = str(InsureeConfig.insuree_number_validator or "").startswith("egypt_localization.")
+        egypt_fixture = egypt_fixture_validation_enabled()
         birthday = custom_props.get("dob", date(1972, 8, 9))
         gender = custom_props.get("gender", Gender.objects.get(code="M"))
         if egypt_fixture:
@@ -70,7 +90,7 @@ def create_test_insuree(with_family=True, is_head=False, custom_props=None, fami
             ref = custom_props.pop('chf_id')
         else:
             ref = generate_random_insuree_number(birthday, gender)
-        while validate_insuree_number(ref) != []:
+        while validate_test_fixture_number(ref) != []:
             ref = generate_random_insuree_number(birthday, gender)
         insuree = Insuree.objects.filter(chf_id=ref, validity_to__isnull=True).first()
     if insuree is None:
