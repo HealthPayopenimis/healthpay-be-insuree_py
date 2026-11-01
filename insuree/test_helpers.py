@@ -6,10 +6,25 @@ from location.test_helpers import create_test_village
 
 import random
 import re
-from datetime import datetime
+from datetime import datetime, date
 from core import filter_validity
     
-def generate_random_insuree_number():
+def generate_random_insuree_number(birth_date=None, gender=None):
+    # Test fixtures must honour the configured country validator without disabling
+    # its model signal. This helper is not used by production enrolment writes.
+    if str(InsureeConfig.insuree_number_validator or "").startswith("egypt_localization."):
+        birthday = birth_date or date(1972, 8, 9)
+        if isinstance(birthday, str):
+            birthday = datetime.fromisoformat(birthday).date()
+        elif isinstance(birthday, datetime):
+            birthday = birthday.date()
+        if not isinstance(birthday, date) or not 1900 <= birthday.year <= 2099:
+            raise ValueError("Egyptian test fixture requires a supported birth date")
+        code = str(getattr(gender, "code", gender) or "M").upper()
+        parity = 0 if code == "F" else 1
+        serial = random.randrange(1, 5000) * 2 + parity
+        century = "2" if birthday.year < 2000 else "3"
+        return century + birthday.strftime("%y%m%d") + "01" + str(serial).zfill(4) + "0"
     start_number = pow(10, (InsureeConfig.insuree_number_max_length or 8) - 1)
     end_number = start_number * 10 - 1
     return random.randrange(start_number, end_number)
@@ -42,12 +57,21 @@ def create_test_insuree(with_family=True, is_head=False, custom_props=None, fami
     if not insuree and 'uuid' in custom_props:
         insuree = Insuree.objects.filter(uuid=custom_props['uuid'], *Insuree.filter_validity()).first()
     if not insuree:
+        egypt_fixture = str(InsureeConfig.insuree_number_validator or "").startswith("egypt_localization.")
+        birthday = custom_props.get("dob", date(1972, 8, 9))
+        gender = custom_props.get("gender", Gender.objects.get(code="M"))
+        if egypt_fixture:
+            if isinstance(birthday, str):
+                birthday = datetime.fromisoformat(birthday).date()
+            elif isinstance(birthday, datetime):
+                birthday = birthday.date()
+            custom_props["dob"] = birthday
         if 'chf_id' in custom_props:
             ref = custom_props.pop('chf_id')
         else:
-            ref = generate_random_insuree_number()
+            ref = generate_random_insuree_number(birthday, gender)
         while validate_insuree_number(ref) != []:
-            ref = generate_random_insuree_number()
+            ref = generate_random_insuree_number(birthday, gender)
         insuree = Insuree.objects.filter(chf_id=ref, validity_to__isnull=True).first()
     if insuree is None:
         #managing location

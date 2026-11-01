@@ -12,6 +12,23 @@ def fail1(x):
 
 
 class InsureeValidationTest(TestCase):
+    CONFIG_FIELDS = ("insuree_number_validator", "insuree_number_max_length",
+                     "insuree_number_min_length", "insuree_number_modulo_root")
+
+    def setUp(self):
+        super().setUp()
+        self.original_config = {key: getattr(InsureeConfig, key) for key in self.CONFIG_FIELDS}
+        self.addCleanup(self.restore_validator_config)
+
+    def restore_validator_config(self):
+        for key, value in self.original_config.items():
+            setattr(InsureeConfig, key, value)
+
+    @staticmethod
+    def validate_format(number):
+        # These unchanged assertions test format/length/modulo, not uniqueness.
+        # Separate DuplicateNationalIdValidationTest retains the real duplicate gate.
+        return validate_insuree_number(number, check_uniqueness=False)
     def test_validator(self):
 
         InsureeConfig.insuree_number_validator = 'insuree.tests.test_insuree_validation.fail1'
@@ -19,17 +36,17 @@ class InsureeValidationTest(TestCase):
         InsureeConfig.insuree_number_min_length = None
         InsureeConfig.insuree_number_modulo_root = None
         
-        self.assertEqual(validate_insuree_number(None), [])
-        self.assertEqual(validate_insuree_number("valid"), [])
-        self.assertEqual(validate_insuree_number("fail1"), ["fail1"])
+        self.assertEqual(self.validate_format(None), [])
+        self.assertEqual(self.validate_format("valid"), [])
+        self.assertEqual(self.validate_format("fail1"), ["fail1"])
         InsureeConfig. insuree_number_validator = None
         InsureeConfig.insuree_number_max_length = None
         InsureeConfig.insuree_number_min_length = None
         InsureeConfig.insuree_number_modulo_root = None
         
-        self.assertEqual(validate_insuree_number(None), [])
-        self.assertEqual(validate_insuree_number("valid"), [])
-        self.assertEqual(validate_insuree_number("fail1"), [])
+        self.assertEqual(self.validate_format(None), [])
+        self.assertEqual(self.validate_format("valid"), [])
+        self.assertEqual(self.validate_format("fail1"), [])
 
     def test_len(self):
         InsureeConfig. insuree_number_validator = None
@@ -37,18 +54,18 @@ class InsureeValidationTest(TestCase):
         InsureeConfig.insuree_number_min_length = 5
         InsureeConfig.insuree_number_modulo_root = None
         
-        self.assertEqual(len(validate_insuree_number(None)), 1)
-        self.assertEqual(len(validate_insuree_number("")), 1)
-        self.assertEqual(len(validate_insuree_number("foo")), 1)
-        self.assertEqual(len(validate_insuree_number("12345")), 0)
-        self.assertEqual(len(validate_insuree_number("1234567")), 1)
+        self.assertEqual(len(self.validate_format(None)), 1)
+        self.assertEqual(len(self.validate_format("")), 1)
+        self.assertEqual(len(self.validate_format("foo")), 1)
+        self.assertEqual(len(self.validate_format("12345")), 0)
+        self.assertEqual(len(self.validate_format("1234567")), 1)
         InsureeConfig. insuree_number_validator = None
         InsureeConfig.insuree_number_max_length = 7
         InsureeConfig.insuree_number_min_length = 7
         InsureeConfig.insuree_number_modulo_root = None
         
-        self.assertEqual(len(validate_insuree_number("12345")), 1)
-        self.assertEqual(len(validate_insuree_number("1234567")), 0)
+        self.assertEqual(len(self.validate_format("12345")), 1)
+        self.assertEqual(len(self.validate_format("1234567")), 0)
 
     def test_mod(self):
         InsureeConfig. insuree_number_validator = None
@@ -56,18 +73,18 @@ class InsureeValidationTest(TestCase):
         InsureeConfig.insuree_number_min_length = 5
         InsureeConfig.insuree_number_modulo_root = 7
         
-        self.assertEqual(len(validate_insuree_number(None)), 1)
-        self.assertEqual(len(validate_insuree_number("12342")), 0)
-        self.assertEqual(len(validate_insuree_number("12345")), 1)
-        self.assertEqual(len(validate_insuree_number("1234567")), 1)
+        self.assertEqual(len(self.validate_format(None)), 1)
+        self.assertEqual(len(self.validate_format("12342")), 0)
+        self.assertEqual(len(self.validate_format("12345")), 1)
+        self.assertEqual(len(self.validate_format("1234567")), 1)
         InsureeConfig. insuree_number_validator = None
         InsureeConfig.insuree_number_max_length = 7
         InsureeConfig.insuree_number_min_length = 7
         InsureeConfig.insuree_number_modulo_root = 5
         
-        self.assertEqual(len(validate_insuree_number("12345")), 1)
-        self.assertEqual(len(validate_insuree_number("1234561")), 0)
-        self.assertEqual(len(validate_insuree_number("1234560")), 1)
+        self.assertEqual(len(self.validate_format("12345")), 1)
+        self.assertEqual(len(self.validate_format("1234561")), 0)
+        self.assertEqual(len(self.validate_format("1234560")), 1)
 
 
 from types import SimpleNamespace
