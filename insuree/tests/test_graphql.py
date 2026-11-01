@@ -1,3 +1,4 @@
+from insuree.tests.photo_fixture import make_png_fixture_base64
 import base64
 import json
 import time
@@ -76,7 +77,7 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
         cls.admin_dist_token = BaseTestContext(user=cls.admin_dist_user).get_jwt()
         cls.photo_base64 = "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEAAQMAAABmvDolAAAAA1BMVEW10NBjBBbqAAAAH0lEQVRoge3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAvg0hAAABmmDh1QAAAABJRU5ErkJggg=="
 
-        cls.photo_base64_2 = "iVBORw0KGgoAAAANSUhEUgAAAQAAAAEAAQMAAABmvDolAAAAA1BMVEW10NBjBBbrAAAAH0lEQVRoge3BAQ0AAADCoPdPbQ43oAAAAAAAAAAAvg0hAAABmmDh1QAAAABJRU5ErkJggg=="
+        cls.photo_base64_2 = make_png_fixture_base64()
         cls.eo_user = create_test_interactive_user(username="Positif", roles=[create_enrolment_officer_role().id])
         cls.non_eo_user = create_test_interactive_user(username="NonEo", roles=[
             create_scheme_admin_role().id,
@@ -358,7 +359,7 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
     mutation {{
       updateFamily(
         input: {{
-          clientMutationId: "{muuid}"
+          clientMutationId: "{mmuid}"
           clientMutationLabel: "Update Family - test create family (445566778899)"
           headInsuree: {{
     chfId: "{hear_number}"
@@ -395,7 +396,7 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
 
     # This validates the status code and if you get errors
       self.assertResponseNoErrors(response)
-      content=  self.get_mutation_result(muuid, self.admin_dist_token )
+      content=  self.get_mutation_result(mmuid, self.admin_dist_token )
       family = Family.objects.filter(*Family.filter_validity(),uuid= uuid.UUID(fuuid)).first()
       self.assertEqual(family.poverty, True)
 
