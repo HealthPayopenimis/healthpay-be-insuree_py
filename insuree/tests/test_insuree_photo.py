@@ -144,8 +144,8 @@ class InsureePhotoTest(openIMISGraphQLTestCase):
                         chfId: "{self.insuree.chf_id}"
                         lastName: "{self.insuree.last_name}"
                         otherNames: "{self.insuree.other_names}"
-                        genderId: "M"
-                        dob: "1950-07-12"
+                        genderId: "{self.insuree.gender.code}"
+                        dob: "{self.insuree.dob.strftime('%Y-%m-%d')}"
                         head: true
                         marital: "M"
                         status: "AC"

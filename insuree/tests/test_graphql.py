@@ -25,7 +25,8 @@ from location.test_helpers import create_test_location, assign_user_districts, c
 from rest_framework import status
 from insuree.test_helpers import create_test_insuree, generate_random_insuree_number
 from location.test_helpers import create_test_location, create_test_health_facility, create_test_village
-from insuree.models import Family
+from insuree.models import Family, Insuree
+from django.utils.crypto import get_random_string
 
 from insuree.apps import InsureeConfig
 from unittest.mock import patch
@@ -48,6 +49,18 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
     test_village = None
     test_insuree = None
     test_photo = None
+    def setUp(self):
+        super().setUp()
+        # Generic format-only tests may override configuration; never leak it
+        # into another test class or country-aware photo/creation fixture.
+        names = ("insuree_number_validator", "insuree_number_max_length",
+                 "insuree_number_min_length", "insuree_number_modulo_root")
+        original = {name: getattr(InsureeConfig, name) for name in names}
+        def restore_number_configuration():
+            for name, value in original.items():
+                setattr(InsureeConfig, name, value)
+        self.addCleanup(restore_number_configuration)
+
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -250,6 +263,7 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
       self.assertResponseNoErrors(response)
       
     def test_create_insuree(self):
+      fixture_dob = "1951-12-05"
       muuid = 'ffa465c5-6807-4de0-847e-202b7f42122b'
       response = self.query(f'''
     mutation {{
@@ -258,11 +272,11 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
           clientMutationId: "{muuid}"
           clientMutationLabel: "Create insuree "
           
-          chfId: "{generate_random_insuree_number()}"
+          chfId: "{generate_random_insuree_number(fixture_dob, 'M')}"
     lastName: "test"
     otherNames: "create insuree"
     genderId: "M"
-    dob: "1951-12-05"
+    dob: "{fixture_dob}"
     head: false
     marital: "M"
     currentVillageId: {self.test_village.id}
@@ -291,7 +305,8 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
       
       
     def test_create_family(self):
-      hear_number = generate_random_insuree_number()
+      fixture_dob = "1999-12-15"
+      hear_number = generate_random_insuree_number(fixture_dob, "M")
 
       muuid='50f8f2c9-7685-4cd5-a7d8-b1fa78d46470'
       fuuid='50f8f2c9-7685-4cd5-a770-b1fa34d46470'
@@ -307,7 +322,7 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
     otherNames: "create family"
     genderId: "M"
     uuid: "50f8f2c9-7685-4cd5-a778-b1fa78d46470"
-    dob: "1999-12-15"
+    dob: "{fixture_dob}"
     head: true
     photo:{{
     officerId: 1
@@ -351,7 +366,7 @@ class InsureeGQLTestCase(openIMISGraphQLTestCase):
     lastName: "test"
     otherNames: "create family"
     genderId: "M"
-    dob: "1999-12-15"
+    dob: "{fixture_dob}"
     head: true
     photo:{{
     officerId: 1
@@ -501,6 +516,12 @@ query GetInsureeInquire($chfId: String) {
             InsureeConfig.insuree_number_max_length = 9
             InsureeConfig.insuree_number_min_length = 9
             InsureeConfig.insuree_number_modulo_root = None
+            for _ in range(30):
+                unused_number = get_random_string(9, allowed_chars="0123456789")
+                if not Insuree.objects.filter(chf_id=unused_number).exists():
+                    break
+            else:
+                self.fail("Unable to prepare an unused format-test identifier")
             response = self.query(
               '''
               query ($insuranceNumber: String!) {
@@ -512,7 +533,7 @@ query GetInsureeInquire($chfId: String) {
               }
               ''',
               headers={"HTTP_AUTHORIZATION": f"Bearer {self.admin_token}"},
-              variables={"insuranceNumber": "070707070"})
+              variables={"insuranceNumber": unused_number})
 
             content = json.loads(response.content)
 
